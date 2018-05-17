@@ -18,10 +18,10 @@ from image_reader import ImageReader
 IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 
 # If you want to apply to other datasets, change following four lines
-DATA_DIR = '/PATH/TO/CITYSCAPES_DATASET'
-DATA_LIST_PATH = './list/cityscapes_train_list.txt' 
+DATA_DIR = '/'
+DATA_LIST_PATH = './list/carla_train_list.txt' 
 IGNORE_LABEL = 255 # The class number of background
-INPUT_SIZE = '720, 720' # Input size for training
+INPUT_SIZE = '600, 800' # Input size for training
 
 BATCH_SIZE = 16 
 LEARNING_RATE = 1e-3
@@ -32,7 +32,6 @@ POWER = 0.9
 WEIGHT_DECAY = 0.0001
 PRETRAINED_MODEL = './model/icnet_cityscapes_trainval_90k_bnnomerge.npy'
 SNAPSHOT_DIR = './snapshots/'
-SAVE_NUM_IMAGES = 4
 SAVE_PRED_EVERY = 50
 
 # Loss Function = LAMBDA1 * sub4_loss + LAMBDA2 * sub24_loss + LAMBDA3 * sub124_loss
@@ -120,7 +119,7 @@ def main():
     
     h, w = map(int, args.input_size.split(','))
     input_size = (h, w)
-    
+
     with tf.name_scope("create_inputs"):
         reader = ImageReader(
             DATA_DIR,
@@ -138,12 +137,19 @@ def main():
     sub24_out = net.layers['sub24_out']
     sub124_out = net.layers['conv6_cls']
 
+    num_reclassified_classes = 3
+    sub4_3cls, sub24_3cls, sub124_3cls = [
+        tf.layers.conv2d(logits_19cls, filters=num_reclassified_classes, kernel_size=1, strides=1,
+            kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+            kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+        for logits_19cls in [sub4_out, sub24_out, sub124_out]]
+
     restore_var = tf.global_variables()
     all_trainable = [v for v in tf.trainable_variables() if ('beta' not in v.name and 'gamma' not in v.name) or args.train_beta_gamma]
    
-    loss_sub4 = create_loss(sub4_out, label_batch, args.num_classes, args.ignore_label)
-    loss_sub24 = create_loss(sub24_out, label_batch, args.num_classes, args.ignore_label)
-    loss_sub124 = create_loss(sub124_out, label_batch, args.num_classes, args.ignore_label)
+    loss_sub4 = create_loss(sub4_3cls, label_batch, num_reclassified_classes, args.ignore_label)
+    loss_sub24 = create_loss(sub24_3cls, label_batch, num_reclassified_classes, args.ignore_label)
+    loss_sub124 = create_loss(sub124_3cls, label_batch, num_reclassified_classes, args.ignore_label)
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'weights' in v.name]
     
     reduced_loss = LAMBDA1 * loss_sub4 +  LAMBDA2 * loss_sub24 + LAMBDA3 * loss_sub124 + tf.add_n(l2_losses)
@@ -168,9 +174,7 @@ def main():
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
-    init = tf.global_variables_initializer()
-    
-    sess.run(init)
+    sess.run(tf.global_variables_initializer())
     
     # Saver for storing checkpoints of the model.
     saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=5)
@@ -202,6 +206,8 @@ def main():
         
     coord.request_stop()
     coord.join(threads)
-    
+
+    sess.close()
+
 if __name__ == '__main__':
     main()
