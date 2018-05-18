@@ -28,7 +28,7 @@ def recreate_bn_model(input_imgs_tensor):
 
     skip_quartersize = 0.0001 * conv2_sub1_bn
     skip_quartersize = tf.layers.conv2d(skip_quartersize,
-        filters=num_reclassified_classes, kernel_size=1, strides=1,
+        filters=num_reclassified_classes, kernel_size=3, strides=1,
         kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
         kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
     sub124_3cls_interp_to_quartersize = tf.image.resize_bilinear(
