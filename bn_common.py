@@ -16,9 +16,8 @@ def recreate_bn_model(input_imgs_tensor):
 
     net = ICNet_BN({'data': imgs}, is_training=True, num_classes=19, filter_scale=1)
     
-    sub4_out = net.layers['sub4_out']
-    sub24_out = net.layers['sub24_out']
-    sub124_out = net.layers['conv6_cls']
+    sub4_out, sub24_out, sub124_out, conv2_sub1_bn = [net.layers[n] for n in [
+        'sub4_out', 'sub24_out', 'conv6_cls', 'conv2_sub1_bn']]
 
     num_reclassified_classes = 3
     sub4_3cls, sub24_3cls, sub124_3cls = [
@@ -26,6 +25,15 @@ def recreate_bn_model(input_imgs_tensor):
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
             kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
         for logits_19cls in [sub4_out, sub24_out, sub124_out]]
+
+    skip_quartersize = 0.0001 * conv2_sub1_bn
+    skip_quartersize = tf.layers.conv2d(skip_quartersize,
+        filters=num_reclassified_classes, kernel_size=1, strides=1,
+        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+    sub124_3cls_interp_to_quartersize = tf.image.resize_bilinear(
+        sub124_3cls, size=tf.shape(skip_quartersize)[1:3], align_corners=True)
+    sub124_3cls_added = sub124_3cls_interp_to_quartersize + skip_quartersize
 
     restore_var = tf.global_variables()
 
@@ -45,7 +53,7 @@ def recreate_bn_model(input_imgs_tensor):
         net.load(restore_from, sess)
 
     # Predictions.
-    raw_output_up = tf.image.resize_bilinear(sub124_3cls, size=(608, 800), align_corners=True)
+    raw_output_up = tf.image.resize_bilinear(sub124_3cls_added, size=(608, 800), align_corners=True)
     raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, 600, 800)
     raw_output_up = tf.argmax(raw_output_up, axis=3)
 
