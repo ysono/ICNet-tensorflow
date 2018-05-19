@@ -29,7 +29,6 @@ MOMENTUM = 0.9
 NUM_CLASSES = 19
 NUM_STEPS = 60001
 POWER = 0.9
-RANDOM_SEED = 1234
 WEIGHT_DECAY = 0.0001
 PRETRAINED_MODEL = './model/icnet_cityscapes_trainval_90k_bnnomerge.npy'
 SNAPSHOT_DIR = './snapshots/'
@@ -122,8 +121,6 @@ def main():
     h, w = map(int, args.input_size.split(','))
     input_size = (h, w)
     
-    coord = tf.train.Coordinator()
-    
     with tf.name_scope("create_inputs"):
         reader = ImageReader(
             DATA_DIR,
@@ -132,10 +129,9 @@ def main():
             args.random_scale,
             args.random_mirror,
             args.ignore_label,
-            IMG_MEAN,
-            coord)
+            IMG_MEAN)
         image_batch, label_batch = reader.dequeue(args.batch_size)
-    
+
     net = ICNet_BN({'data': image_batch}, is_training=True, num_classes=args.num_classes, filter_scale=args.filter_scale)
     
     sub4_out = net.layers['sub4_out']
@@ -167,7 +163,7 @@ def main():
         opt_conv = tf.train.MomentumOptimizer(learning_rate, args.momentum)
         grads = tf.gradients(reduced_loss, all_trainable)
         train_op = opt_conv.apply_gradients(zip(grads, all_trainable))
-        
+    
     # Set up tf session and initialize variables. 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -182,13 +178,13 @@ def main():
     ckpt = tf.train.get_checkpoint_state(args.snapshot_dir)
     if ckpt and ckpt.model_checkpoint_path:
         loader = tf.train.Saver(var_list=restore_var)
-        load_step = int(os.path.basename(ckpt.model_checkpoint_path).split('-')[1])
         load(loader, sess, ckpt.model_checkpoint_path)
     else:
         print('Restore from pre-trained model...')
         net.load(args.restore_from, sess)
 
     # Start queue threads.
+    coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
     # Iterate over training steps.

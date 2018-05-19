@@ -18,9 +18,9 @@ IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 ADE20k_class = 150 # predict: [0~149] corresponding to label [1~150], ignore class 0 (background)
 cityscapes_class = 19
 
-model_paths = {'train': './model/icnet_cityscapes_train_30k.npy', 
-              'trainval': './model/icnet_cityscapes_trainval_90k.npy',
-              'train_bn': './model/icnet_cityscapes_train_30k_bnnomerge.npy',
+model_paths = {'train':      './model/icnet_cityscapes_train_30k.npy', 
+              'trainval':    './model/icnet_cityscapes_trainval_90k.npy',
+              'train_bn':    './model/icnet_cityscapes_train_30k_bnnomerge.npy',
               'trainval_bn': './model/icnet_cityscapes_trainval_90k_bnnomerge.npy',
               'others': './model/'}
 
@@ -41,8 +41,6 @@ def get_arguments():
                         required=True)
     parser.add_argument("--save-dir", type=str, default=SAVE_DIR,
                         help="Path to save output.")
-    parser.add_argument("--flipped-eval", action="store_true",
-                        help="whether to evaluate with flipped img.")
     parser.add_argument("--filter-scale", type=int, default=1,
                         help="1 for using pruned model, while 2 for using non-pruned model.",
                         choices=[1, 2])
@@ -51,15 +49,6 @@ def get_arguments():
                         required=True)
 
     return parser.parse_args()
-
-def save(saver, sess, logdir, step):
-   model_name = 'model.ckpt'
-   checkpoint_path = os.path.join(logdir, model_name)
-
-   if not os.path.exists(logdir):
-      os.makedirs(logdir)
-   saver.save(sess, checkpoint_path, global_step=step)
-   print('The checkpoint has been created.')
 
 def load(saver, sess, ckpt_path):
     saver.restore(sess, ckpt_path)
@@ -94,7 +83,7 @@ def check_input(img):
 
     if ori_h % 32 != 0 or ori_w % 32 != 0:
         new_h = (int(ori_h/32) + 1) * 32
-        new_w = (int(ori_w/32) + 1) * 32
+        new_w = (int(ori_w/32) + 1) * 32     # this should be ceil
         shape = [new_h, new_w]
 
         img = tf.image.pad_to_bounding_box(img, 0, 0, new_h, new_w)
@@ -145,7 +134,7 @@ def main():
     raw_output_up = tf.image.resize_bilinear(raw_output, size=n_shape, align_corners=True)
     raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, shape[0], shape[1])
     raw_output_up = tf.argmax(raw_output_up, axis=3)
-    pred = decode_labels(raw_output_up, shape, num_classes)
+    pred = decode_labels(raw_output_up, shape, num_classes) # this is the labelled mask in RGB.
 
     # Init tf Session
     config = tf.ConfigProto()
@@ -155,8 +144,6 @@ def main():
 
     sess.run(init)
 
-    restore_var = tf.global_variables()
-    
     model_path = model_paths[args.model]
     if args.model == 'others':
         ckpt = tf.train.get_checkpoint_state(model_path)
@@ -179,7 +166,9 @@ def main():
         elapsed = timeit.default_timer() - start_time
 
         print('inference time: {}'.format(elapsed))
-        misc.imsave(args.save_dir + filenames[i], preds[0])
+        misc.imsave(os.path.join(args.save_dir, filenames[i]), preds[0])
+
+    # return preds
 
 if __name__ == '__main__':
     main()

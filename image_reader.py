@@ -30,7 +30,6 @@ def random_crop_and_pad_image_and_labels(image, label, crop_h, crop_w, ignore_la
     combined_pad = tf.image.pad_to_bounding_box(combined, 0, 0, tf.maximum(crop_h, image_shape[0]), tf.maximum(crop_w, image_shape[1]))
 
     last_image_dim = tf.shape(image)[-1]
-    last_label_dim = tf.shape(label)[-1]
     combined_crop = tf.random_crop(combined_pad, [crop_h,crop_w,4])
     img_crop = combined_crop[:, :, :last_image_dim]
     label_crop = combined_crop[:, :, last_image_dim:]
@@ -64,6 +63,7 @@ def read_labeled_image_list(data_dir, data_list):
         images.append(image)
         masks.append(mask)
 
+    f.close()
     return images, masks
 
 def read_images_from_disk(input_queue, input_size, random_scale, random_mirror, ignore_label, img_mean): # optional pre-processing arguments
@@ -97,12 +97,11 @@ class ImageReader(object):
     '''
 
     def __init__(self, data_dir, data_list, input_size,
-                  random_scale, random_mirror, ignore_label, img_mean, coord):
+                  random_scale, random_mirror, ignore_label, img_mean):
 
         self.data_dir = data_dir
         self.data_list = data_list
         self.input_size = input_size
-        self.coord = coord
 
         self.image_list, self.label_list = read_labeled_image_list(self.data_dir, self.data_list)
         self.images = tf.convert_to_tensor(self.image_list, dtype=tf.string)

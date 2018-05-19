@@ -4,7 +4,6 @@ slim = tf.contrib.slim
 
 DEFAULT_PADDING = 'VALID'
 DEFAULT_DATAFORMAT = 'NHWC'
-layer_name = []
 BN_param_map = {'scale':    'gamma',
                 'offset':   'beta',
                 'variance': 'moving_variance',
@@ -26,7 +25,6 @@ def layer(op):
         layer_output = op(self, layer_input, *args, **kwargs)
         # Add to layer LUT.
         self.layers[name] = layer_output
-        layer_name.append(name)
         # This output is now the input for the next layer.
         self.feed(layer_output)
         # Return self for chained calls.
@@ -110,8 +108,6 @@ class Network(object):
         '''Creates a new TensorFlow variable.'''
         return tf.get_variable(name, shape, trainable=self.trainable)
 
-    def get_layer_name(self):
-        return layer_name
     def validate_padding(self, padding):
         '''Verifies that the padding is one of the supported ones.'''
         assert padding in ('SAME', 'VALID')
@@ -131,7 +127,6 @@ class Network(object):
              name,
              relu=True,
              padding=DEFAULT_PADDING,
-             group=1,
              biased=True):
         # Verify that the padding is acceptable
         self.validate_padding(padding)
@@ -163,7 +158,6 @@ class Network(object):
                     name,
                     relu=True,
                     padding=DEFAULT_PADDING,
-                    group=1,
                     biased=True):
         # Verify that the padding is acceptable
         self.validate_padding(padding)
