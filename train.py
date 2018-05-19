@@ -22,7 +22,7 @@ IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 DATA_DIR = '/'
 DATA_LIST_PATH = './list/carla_train_list.txt' 
 IGNORE_LABEL = 255 # The class number of background
-INPUT_SIZE = '600, 800' # Input size for training
+INPUT_SIZE = '608, 800' # Input size for training
 
 BATCH_SIZE = 16 
 LEARNING_RATE = 1e-3
@@ -175,7 +175,7 @@ def main():
     sess.run(tf.global_variables_initializer())
     
     # Saver for storing checkpoints of the model.
-    saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=5)
+    saver = tf.train.Saver(var_list=tf.global_variables(), max_to_keep=99)
 
     ckpt = tf.train.get_checkpoint_state(args.snapshot_dir)
     if ckpt and ckpt.model_checkpoint_path:

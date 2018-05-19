@@ -7,8 +7,8 @@ from model import ICNet_BN
 IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 
 def extend_3cls_classifier(net):
-    sub4_out, sub24_out, sub124_out, conv2_sub1_bn, conv1_sub1_bn = [net.layers[n] for n in [
-        'sub4_out', 'sub24_out', 'conv6_cls', 'conv2_sub1_bn', 'conv1_sub1_bn']]
+    sub4_out, sub24_out, sub124_out, conv2_sub1_bn, conv1_sub1_bn, origsize_bgr = [net.layers[n] for n in [
+        'sub4_out', 'sub24_out', 'conv6_cls', 'conv2_sub1_bn', 'conv1_sub1_bn', 'data']]
 
     with tf.variable_scope('reclassification'):
         num_reclassified_classes = 3
@@ -26,7 +26,7 @@ def extend_3cls_classifier(net):
 
         skip_quartersize = 0.0001 * conv2_sub1_bn
         skip_quartersize = tf.layers.conv2d(skip_quartersize,
-            filters=num_reclassified_classes, kernel_size=9, strides=1, padding='SAME',
+            filters=num_reclassified_classes, kernel_size=7, strides=1, padding='SAME',
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
             kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
         sub124_3cls_interp_to_quartersize = tf.image.resize_bilinear(
@@ -35,14 +35,23 @@ def extend_3cls_classifier(net):
         
         skip_halfsize = 0.00001 * conv1_sub1_bn
         skip_halfsize = tf.layers.conv2d(skip_halfsize,
-            filters=num_reclassified_classes, kernel_size=11, strides=1, padding='SAME',
+            filters=num_reclassified_classes, kernel_size=7, strides=1, padding='SAME',
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
             kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
         sub124_3cls_interp_to_halfsize = tf.image.resize_bilinear(
             sub124_3cls_added_quartersize, size=tf.shape(skip_halfsize)[1:3], align_corners=True)
         sub124_3cls_added_halfsize = sub124_3cls_interp_to_halfsize + skip_halfsize
 
-    return sub4_3cls, sub24_3cls, sub124_3cls_added_halfsize
+        skip_origsize = 0.000001 * origsize_bgr
+        skip_origsize = tf.layers.conv2d(skip_origsize,
+            filters=num_reclassified_classes, kernel_size=7, strides=1, padding='SAME',
+            kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+            kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+        sub124_3cls_interp_to_origsize = tf.image.resize_bilinear(
+            sub124_3cls_added_halfsize, size=tf.shape(skip_origsize)[1:3], align_corners=True)
+        sub124_3cls_added_origsize = sub124_3cls_interp_to_origsize + skip_origsize
+
+    return sub4_3cls, sub24_3cls, sub124_3cls_added_origsize
 
 def recreate_bn_model(input_imgs_tensor):
     snapshot_dir = './snapshots/'
@@ -74,8 +83,9 @@ def recreate_bn_model(input_imgs_tensor):
         net.load(restore_from, sess)
 
     # Predictions.
-    raw_output_up = tf.image.resize_bilinear(sub124_3cls, size=(608, 800), align_corners=True)
-    raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, 600, 800)
+    # raw_output_up = tf.image.resize_bilinear(sub124_3cls, size=(608, 800), align_corners=True)
+    # raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, 600, 800)
+    raw_output_up = tf.image.crop_to_bounding_box(sub124_3cls, 0, 0, 600, 800)
     raw_output_up = tf.argmax(raw_output_up, axis=3)
 
     return sess, raw_output_up
