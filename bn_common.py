@@ -21,7 +21,7 @@ def recreate_bn_model(input_imgs_tensor):
 
     num_reclassified_classes = 3
     sub4_3cls, sub24_3cls, sub124_3cls = [
-        tf.layers.conv2d(logits_19cls, filters=num_reclassified_classes, kernel_size=1, strides=1,
+        tf.layers.conv2d(logits_19cls, filters=num_reclassified_classes, kernel_size=3, strides=1,
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
             kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
         for logits_19cls in [sub4_out, sub24_out, sub124_out]]
