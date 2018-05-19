@@ -12,15 +12,21 @@ def extend_3cls_classifier(net):
 
     with tf.variable_scope('reclassification'):
         num_reclassified_classes = 3
+
         sub4_3cls, sub24_3cls, sub124_3cls = [
-            tf.layers.conv2d(logits_19cls, filters=num_reclassified_classes, kernel_size=3, strides=1,
+            tf.layers.conv2d(logits_19cls,
+                filters=num_reclassified_classes, kernel_size=kernel_size, strides=1, padding='SAME',
                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
-            for logits_19cls in [sub4_out, sub24_out, sub124_out]]
+            for logits_19cls, kernel_size in zip(
+                [sub4_out, sub24_out, sub124_out],
+                [3, 5, 7]
+            )
+        ]
 
         skip_quartersize = 0.0001 * conv2_sub1_bn
         skip_quartersize = tf.layers.conv2d(skip_quartersize,
-            filters=num_reclassified_classes, kernel_size=3, strides=1,
+            filters=num_reclassified_classes, kernel_size=9, strides=1, padding='SAME',
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
             kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
         sub124_3cls_interp_to_quartersize = tf.image.resize_bilinear(
@@ -29,7 +35,7 @@ def extend_3cls_classifier(net):
         
         skip_halfsize = 0.00001 * conv1_sub1_bn
         skip_halfsize = tf.layers.conv2d(skip_halfsize,
-            filters=num_reclassified_classes, kernel_size=3, strides=1,
+            filters=num_reclassified_classes, kernel_size=11, strides=1, padding='SAME',
             kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
             kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
         sub124_3cls_interp_to_halfsize = tf.image.resize_bilinear(
