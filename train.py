@@ -133,8 +133,8 @@ def main():
 
     net = ICNet_BN({'data': image_batch}, is_training=True, num_classes=args.num_classes, filter_scale=args.filter_scale)
     
-    sub4_out, sub24_out, sub124_out, conv2_sub1_bn = [net.layers[n] for n in [
-        'sub4_out', 'sub24_out', 'conv6_cls', 'conv2_sub1_bn']]
+    sub4_out, sub24_out, sub124_out, conv2_sub1_bn, conv1_sub1_bn = [net.layers[n] for n in [
+        'sub4_out', 'sub24_out', 'conv6_cls', 'conv2_sub1_bn', 'conv1_sub1_bn']]
 
     num_reclassified_classes = 3
     sub4_3cls, sub24_3cls, sub124_3cls = [
@@ -150,14 +150,23 @@ def main():
         kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
     sub124_3cls_interp_to_quartersize = tf.image.resize_bilinear(
         sub124_3cls, size=tf.shape(skip_quartersize)[1:3], align_corners=True)
-    sub124_3cls_added = sub124_3cls_interp_to_quartersize + skip_quartersize
+    sub124_3cls_added_quartersize = sub124_3cls_interp_to_quartersize + skip_quartersize
+    
+    skip_halfsize = 0.00001 * conv1_sub1_bn
+    skip_halfsize = tf.layers.conv2d(skip_halfsize,
+        filters=num_reclassified_classes, kernel_size=3, strides=1,
+        kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+        kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+    sub124_3cls_interp_to_halfsize = tf.image.resize_bilinear(
+        sub124_3cls_added_quartersize, size=tf.shape(skip_halfsize)[1:3], align_corners=True)
+    sub124_3cls_added_halfsize = sub124_3cls_interp_to_halfsize + skip_halfsize
 
     restore_var = tf.global_variables()
     all_trainable = [v for v in tf.trainable_variables() if ('beta' not in v.name and 'gamma' not in v.name) or args.train_beta_gamma]
    
     loss_sub4 = create_loss(sub4_3cls, label_batch, num_reclassified_classes, args.ignore_label)
     loss_sub24 = create_loss(sub24_3cls, label_batch, num_reclassified_classes, args.ignore_label)
-    loss_sub124 = create_loss(sub124_3cls_added, label_batch, num_reclassified_classes, args.ignore_label)
+    loss_sub124 = create_loss(sub124_3cls_added_halfsize, label_batch, num_reclassified_classes, args.ignore_label)
     
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'weights' in v.name]
     
