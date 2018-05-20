@@ -15,38 +15,48 @@ def extend_3cls_classifier(net):
 
         sub4_3cls, sub24_3cls, sub124_3cls = [
             tf.layers.conv2d(logits_19cls,
-                filters=num_reclassified_classes, kernel_size=kernel_size, strides=1, padding='SAME',
+                filters=num_reclassified_classes, kernel_size=3, strides=1, padding='SAME',
                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
                 kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
-            for logits_19cls, kernel_size in zip(
-                [sub4_out, sub24_out, sub124_out],
-                [3, 5, 7]
-            )
+            for logits_19cls in [sub4_out, sub24_out, sub124_out]
         ]
 
+        def inception(input, branch3x3_intermediate_depth):
+            branch1x1 = tf.layers.conv2d(input,
+                num_reclassified_classes, kernel_size=1, strides=1, padding='SAME',
+                kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+
+            branch3x3 = tf.layers.conv2d(input,
+                branch3x3_intermediate_depth, kernel_size=3, strides=1, padding='SAME',
+                kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01),
+                activation=tf.nn.elu)
+            branch3x3 = tf.layers.conv2d(branch3x3,
+                num_reclassified_classes, kernel_size=3, strides=1, padding='SAME',
+                kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+                kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+
+            branches_added = branch1x1 + branch3x3
+            # return tf.nn.elu(branches_added)
+            return branches_added
+
         skip_quartersize = 0.0001 * conv2_sub1_bn
-        skip_quartersize = tf.layers.conv2d(skip_quartersize,
-            filters=num_reclassified_classes, kernel_size=7, strides=1, padding='SAME',
-            kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
-            kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+        skip_quartersize = inception(skip_quartersize, 16)
         sub124_3cls_interp_to_quartersize = tf.image.resize_bilinear(
             sub124_3cls, size=tf.shape(skip_quartersize)[1:3], align_corners=True)
         sub124_3cls_added_quartersize = sub124_3cls_interp_to_quartersize + skip_quartersize
-        
+        # todo activn
+
         skip_halfsize = 0.00001 * conv1_sub1_bn
-        skip_halfsize = tf.layers.conv2d(skip_halfsize,
-            filters=num_reclassified_classes, kernel_size=7, strides=1, padding='SAME',
-            kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
-            kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+        skip_halfsize = inception(skip_halfsize, 16)
         sub124_3cls_interp_to_halfsize = tf.image.resize_bilinear(
             sub124_3cls_added_quartersize, size=tf.shape(skip_halfsize)[1:3], align_corners=True)
         sub124_3cls_added_halfsize = sub124_3cls_interp_to_halfsize + skip_halfsize
+        # todo activn
 
         skip_origsize = 0.000001 * origsize_bgr
-        skip_origsize = tf.layers.conv2d(skip_origsize,
-            filters=num_reclassified_classes, kernel_size=7, strides=1, padding='SAME',
-            kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
-            kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01))
+        skip_origsize = inception(skip_origsize, 3)
         sub124_3cls_interp_to_origsize = tf.image.resize_bilinear(
             sub124_3cls_added_halfsize, size=tf.shape(skip_origsize)[1:3], align_corners=True)
         sub124_3cls_added_origsize = sub124_3cls_interp_to_origsize + skip_origsize
