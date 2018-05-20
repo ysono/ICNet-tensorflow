@@ -100,19 +100,34 @@ def get_mask(gt, num_classes, ignore_label):
 
     return indices
 
-def create_loss(output, label, num_classes, ignore_label):
-    raw_pred = tf.reshape(output, [-1, num_classes])
-    label = prepare_label(label, tf.stack(output.get_shape()[1:3]), num_classes=num_classes, one_hot=False)
-    label = tf.reshape(label, [-1,])
+def create_loss(output, label, num_classes, __ignore_label):
+    with tf.variable_scope('optimizer_fscore'):
+        logits = tf.sigmoid(output)
 
-    indices = get_mask(label, num_classes, ignore_label)
-    gt = tf.cast(tf.gather(label, indices), tf.int32)
-    pred = tf.gather(raw_pred, indices)
+        label = prepare_label(label, tf.stack(output.get_shape()[1:3]), num_classes=num_classes, one_hot=True)
 
-    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred, labels=gt)
-    reduced_loss = tf.reduce_mean(loss)
+        logits_cls0, logits_cls1, logits_cls2 = tf.split(logits, axis=-1, num_or_size_splits=3)
+        labels_cls0, labels_cls1, labels_cls2 = tf.split(label, axis=-1, num_or_size_splits=3)
 
-    return reduced_loss
+        def f_score(logits_1cls, labels_1cls, beta):
+            true_positive = tf.reduce_sum(tf.multiply(logits_1cls, labels_1cls))
+            false_positive = tf.reduce_sum(tf.multiply(logits_1cls, (1 - labels_1cls)))
+            false_negative = tf.reduce_sum(tf.multiply((1 - logits_1cls), labels_1cls))
+
+            precision = true_positive / (true_positive + false_positive)
+            recall = true_positive / (true_positive + false_negative)
+
+            f = (1 + beta**2) * (precision * recall) / (beta**2 * precision + recall)
+            return f
+
+        f_car = f_score(logits_cls2, labels_cls2, 2.0)
+        f_road = f_score(logits_cls1, labels_cls1, 0.5)
+        f_bg = f_score(logits_cls0, labels_cls0, 1.0)
+        f_overall = (f_car + f_road + f_bg) / 3.0
+
+        f_loss = 1.0 - f_overall
+
+    return f_loss
 
 def main():
     """Create the model and start the training."""
@@ -149,6 +164,9 @@ def main():
     
     reduced_loss = LAMBDA1 * loss_sub4 +  LAMBDA2 * loss_sub24 + LAMBDA3 * loss_sub124 + tf.add_n(l2_losses)
 
+    # tf.summary.FileWriter('./summary', tf.get_default_graph())
+    # exit(0)
+
     # Using Poly learning rate policy 
     base_lr = tf.constant(args.learning_rate)
     step_ph = tf.placeholder(dtype=tf.float32, shape=())
@@ -164,9 +182,6 @@ def main():
         opt_conv = tf.train.MomentumOptimizer(learning_rate, args.momentum)
         grads = tf.gradients(reduced_loss, all_trainable)
         train_op = opt_conv.apply_gradients(zip(grads, all_trainable))
-    
-    # tf.summary.FileWriter('./summary', tf.get_default_graph())
-    # exit(0)
 
     # Set up tf session and initialize variables. 
     config = tf.ConfigProto()
