@@ -160,7 +160,8 @@ def main():
     loss_sub24 = create_loss(sub24_3cls, label_batch, num_reclassified_classes, args.ignore_label)
     loss_sub124 = create_loss(sub124_3cls, label_batch, num_reclassified_classes, args.ignore_label)
     
-    l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables() if 'weights' in v.name]
+    l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables()
+                 if ('weights' in v.name) or ('kernel' in v.name)]
     
     reduced_loss = LAMBDA1 * loss_sub4 +  LAMBDA2 * loss_sub24 + LAMBDA3 * loss_sub124 + tf.add_n(l2_losses)
 
