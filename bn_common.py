@@ -96,6 +96,6 @@ def recreate_bn_model(input_imgs_tensor):
     # raw_output_up = tf.image.resize_bilinear(sub124_3cls, size=(608, 800), align_corners=True)
     # raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, 600, 800)
     raw_output_up = tf.image.crop_to_bounding_box(sub124_3cls, 0, 0, 600, 800)
-    raw_output_up = tf.argmax(raw_output_up, axis=3)
+    raw_output_up = tf.argmax(raw_output_up, axis=3, name='output_sparse')
 
     return sess, raw_output_up
