@@ -29,9 +29,9 @@ def extend_3cls_classifier(net):
 
             branch3x3 = tf.layers.conv2d(input,
                 branch3x3_intermediate_depth, kernel_size=3, strides=1, padding='SAME',
-                kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
-                kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01),
-                activation=tf.nn.elu)
+                    kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(0.01),
+                    activation=tf.nn.elu)
             branch3x3 = tf.layers.conv2d(branch3x3,
                 num_reclassified_classes, kernel_size=3, strides=1, padding='SAME',
                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
@@ -63,7 +63,7 @@ def extend_3cls_classifier(net):
 
     return sub4_3cls, sub24_3cls, sub124_3cls_added_origsize
 
-def recreate_bn_model(input_imgs_tensor):
+def recreate_bn_model(input_imgs_tensor, is_training=True):
     snapshot_dir = './snapshots/'
     restore_from = './model/icnet_cityscapes_trainval_90k_bnnomerge.npy'
 
@@ -71,7 +71,7 @@ def recreate_bn_model(input_imgs_tensor):
     imgs = tf.cast(tf.concat(axis=3, values=[img_b, img_g, img_r]), dtype=tf.float32)
     imgs = imgs - IMG_MEAN
 
-    net = ICNet_BN({'data': imgs}, is_training=True, num_classes=19, filter_scale=1)
+    net = ICNet_BN({'data': imgs}, is_training=is_training, num_classes=19, filter_scale=1)
 
     _, _, sub124_3cls = extend_3cls_classifier(net)
 

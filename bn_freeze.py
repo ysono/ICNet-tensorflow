@@ -1,13 +1,16 @@
-import tensorflow as tf
 
-import bn_common
 
-def main():
+def main(is_training):
+    import sys
+    import tensorflow as tf
+
+    import bn_common
 
     raw_inputs = tf.placeholder(dtype=tf.uint8, shape=(None, 600, 800, 3),
                                 name='inputs_600_800')
 
-    sess, raw_output_up = bn_common.recreate_bn_model(raw_inputs)
+
+    sess, raw_output_up = bn_common.recreate_bn_model(raw_inputs, is_training=is_training)
 
     # tf.summary.FileWriter('./summary', tf.get_default_graph())
     # sess.close()
@@ -27,4 +30,5 @@ def main():
     sess.close()
 
 if __name__ == '__main__':
-    main()
+    is_training = len(sys.argv) >= 2 and sys.argv[1] == 'is_training'
+    main(is_training)

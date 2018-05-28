@@ -165,6 +165,9 @@ def main():
     
     reduced_loss = LAMBDA1 * loss_sub4 +  LAMBDA2 * loss_sub24 + LAMBDA3 * loss_sub124 + tf.add_n(l2_losses)
 
+    # print(tf.get_variable_scope().name)
+    # print(','.join([v.__op.original_name_scope for v in l2_losses]))
+    # print(','.join([v for v in tf.trainable_variables() if ('beta' in v.name or 'gamma' in v.name)]))
     # tf.summary.FileWriter('./summary', tf.get_default_graph())
     # exit(0)
 
