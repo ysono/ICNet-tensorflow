@@ -30,7 +30,7 @@ MOMENTUM = 0.9
 NUM_CLASSES = 19
 NUM_STEPS = 60001
 POWER = 0.9
-WEIGHT_DECAY = 0.0001
+WEIGHT_DECAY = 0.00001
 PRETRAINED_MODEL = './model/icnet_cityscapes_trainval_90k_bnnomerge.npy'
 SNAPSHOT_DIR = './snapshots/'
 SAVE_PRED_EVERY = 50
@@ -120,14 +120,24 @@ def create_loss(output, label, num_classes, __ignore_label):
             f = (1 + beta**2) * (precision * recall) / (beta**2 * precision + recall)
             return f
 
+        def iou(logits_1cls, labels_1cls):
+            # https://angusg.com/writing/2016/12/28/optimizing-iou-semantic-segmentation.html
+            prod = tf.multiply(logits_1cls, labels_1cls)
+            inter = tf.reduce_sum(prod)
+            union = tf.reduce_sum(logits_1cls + labels_1cls - prod)
+            return inter / union
+
         f_car = f_score(logits_cls2, labels_cls2, 2.0)
         f_road = f_score(logits_cls1, labels_cls1, 0.5)
-        f_bg = f_score(logits_cls0, labels_cls0, 1.0)
-        f_overall = (f_car + f_road + f_bg) / 3.0
-
+        f_overall = (f_car + f_road) / 2.0
         f_loss = 1.0 - f_overall
 
-    return f_loss
+        bg_iou = iou(logits_cls0, labels_cls0)
+        bg_loss = 1.0 - bg_iou
+
+        overall_loss = f_loss * 2 + bg_loss
+
+    return overall_loss
 
 def main():
     """Create the model and start the training."""
