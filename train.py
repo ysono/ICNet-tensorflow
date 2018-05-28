@@ -120,22 +120,17 @@ def create_loss(output, label, num_classes, __ignore_label):
             f = (1 + beta**2) * (precision * recall) / (beta**2 * precision + recall)
             return f
 
-        def iou(logits_1cls, labels_1cls):
-            # https://angusg.com/writing/2016/12/28/optimizing-iou-semantic-segmentation.html
-            prod = tf.multiply(logits_1cls, labels_1cls)
-            inter = tf.reduce_sum(prod)
-            union = tf.reduce_sum(logits_1cls + labels_1cls - prod)
-            return inter / union
+        def correctness(logits, labels):
+            return tf.reduce_mean((labels - logits) * labels + logits * (1 - labels))
 
         f_car = f_score(logits_cls2, labels_cls2, 2.0)
         f_road = f_score(logits_cls1, labels_cls1, 0.5)
         f_overall = (f_car + f_road) / 2.0
         f_loss = 1.0 - f_overall
 
-        bg_iou = iou(logits_cls0, labels_cls0)
-        bg_loss = 1.0 - bg_iou
+        loss_correctness = correctness(logits, label)
 
-        overall_loss = f_loss * 2 + bg_loss
+        overall_loss = f_loss * 4 + loss_correctness
 
     return overall_loss
 
