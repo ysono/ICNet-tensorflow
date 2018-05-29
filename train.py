@@ -130,7 +130,7 @@ def create_loss(output, label, num_classes, __ignore_label):
 
         loss_correctness = correctness(logits, label)
 
-        overall_loss = f_loss * 4 + loss_correctness
+        overall_loss = f_loss * 8 + loss_correctness
 
     return overall_loss
 
