@@ -124,13 +124,14 @@ def create_loss(output, label, num_classes, __ignore_label):
             return tf.reduce_mean((labels - logits) * labels + logits * (1 - labels))
 
         f_car = f_score(logits_cls2, labels_cls2, 2.0)
+        f_car_loss = 1.0 - f_car
+
         f_road = f_score(logits_cls1, labels_cls1, 0.5)
-        f_overall = (f_car + f_road) / 2.0
-        f_loss = 1.0 - f_overall
+        f_road_loss = 1.0 - f_road
 
         loss_correctness = correctness(logits, label)
 
-        overall_loss = f_loss * 8 + loss_correctness
+        overall_loss = f_car_loss * 6 + f_road_loss * 3 + loss_correctness
 
     return overall_loss
 
