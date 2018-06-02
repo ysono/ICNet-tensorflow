@@ -107,10 +107,10 @@ def create_loss(output, label, num_classes, args):
     with tf.variable_scope('optimizer_fscore'):
         logits = tf.sigmoid(output)
 
-        label = prepare_label(label, tf.stack(output.get_shape()[1:3]), num_classes=num_classes, one_hot=True)
+        label_onehot = prepare_label(label, tf.stack(output.get_shape()[1:3]), num_classes=num_classes, one_hot=True)
 
         logits_cls0, logits_cls1, logits_cls2 = tf.split(logits, axis=-1, num_or_size_splits=3)
-        labels_cls0, labels_cls1, labels_cls2 = tf.split(label, axis=-1, num_or_size_splits=3)
+        labels_cls0, labels_cls1, labels_cls2 = tf.split(label_onehot, axis=-1, num_or_size_splits=3)
 
         def f_score(logits_1cls, labels_1cls, beta):
             true_positive = tf.reduce_sum(tf.multiply(logits_1cls, labels_1cls))
@@ -123,16 +123,14 @@ def create_loss(output, label, num_classes, args):
             f = (1 + beta**2) * (precision * recall) / (beta**2 * precision + recall)
             return f
 
-        def correctness(logits, labels):
-            return tf.reduce_mean((labels - logits) * labels + logits * (1 - labels))
-
         f_car = f_score(logits_cls2, labels_cls2, 2.0)
         f_car_loss = 1.0 - f_car
 
         f_road = f_score(logits_cls1, labels_cls1, 0.5)
         f_road_loss = 1.0 - f_road
 
-        loss_correctness = correctness(logits, label)
+        loss_correctness = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+            logits=output, labels=label_onehot))
 
         overall_loss = f_car_loss * args.loss_mult_nonego_car + f_road_loss * args.loss_mult_road + loss_correctness
 
