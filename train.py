@@ -48,6 +48,7 @@ def get_arguments():
                         help="The index of the label to ignore during the training.")
     parser.add_argument("--input-size", type=str, default=INPUT_SIZE,
                         help="Comma-separated string with height and width of images.")
+    parser.add_argument("--center_crop_size", type=str, default=None)
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE,
                         help="Base learning rate for training with polynomial decay.")
     parser.add_argument("--momentum", type=float, default=MOMENTUM,
@@ -142,11 +143,18 @@ def main():
     h, w = map(int, args.input_size.split(','))
     input_size = (h, w)
 
+    if args.center_crop_size is None:
+        center_crop_size = None
+    else:
+        hc, wc = map(int, args.center_crop_size.split(','))
+        center_crop_size = (hc, wc)
+
     with tf.name_scope("create_inputs"):
         reader = ImageReader(
             DATA_DIR,
             DATA_LIST_PATH,
             input_size,
+            center_crop_size,
             args.random_scale,
             args.random_mirror,
             args.ignore_label,

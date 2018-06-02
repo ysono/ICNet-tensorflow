@@ -63,7 +63,7 @@ def extend_3cls_classifier(net):
 
     return sub4_3cls, sub24_3cls, sub124_3cls_added_origsize
 
-def recreate_bn_model(input_imgs_tensor, is_training=True):
+def recreate_bn_model(input_imgs_tensor, is_training=True, crop_size=(600,800)):
     snapshot_dir = './snapshots/'
     restore_from = './model/icnet_cityscapes_trainval_90k_bnnomerge.npy'
 
@@ -73,7 +73,7 @@ def recreate_bn_model(input_imgs_tensor, is_training=True):
 
     net = ICNet_BN({'data': imgs}, is_training=is_training, num_classes=19, filter_scale=1)
 
-    _, _, sub124_3cls = extend_3cls_classifier(net)
+    _, _, output = extend_3cls_classifier(net)
 
     restore_var = tf.global_variables()
 
@@ -92,10 +92,8 @@ def recreate_bn_model(input_imgs_tensor, is_training=True):
         sess.run(tf.global_variables_initializer())
         net.load(restore_from, sess)
 
-    # Predictions.
-    # raw_output_up = tf.image.resize_bilinear(sub124_3cls, size=(608, 800), align_corners=True)
-    # raw_output_up = tf.image.crop_to_bounding_box(raw_output_up, 0, 0, 600, 800)
-    raw_output_up = tf.image.crop_to_bounding_box(sub124_3cls, 0, 0, 600, 800)
-    raw_output_up = tf.argmax(raw_output_up, axis=3, name='output_sparse')
+    if crop_size is not None:
+        output = tf.image.crop_to_bounding_box(output, 0, 0, crop_size[0], crop_size[1])
+    output = tf.argmax(output, axis=3, name='output_sparse')
 
-    return sess, raw_output_up
+    return sess, output

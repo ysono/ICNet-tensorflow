@@ -66,7 +66,7 @@ def read_labeled_image_list(data_dir, data_list):
     f.close()
     return images, masks
 
-def read_images_from_disk(input_queue, input_size, random_scale, random_mirror, ignore_label, img_mean): # optional pre-processing arguments
+def read_images_from_disk(input_queue, input_size, center_crop_size, random_scale, random_mirror, ignore_label, img_mean): # optional pre-processing arguments
     img_contents = tf.read_file(input_queue[0])
     label_contents = tf.read_file(input_queue[1])
 
@@ -78,7 +78,20 @@ def read_images_from_disk(input_queue, input_size, random_scale, random_mirror, 
 
     label = tf.image.decode_png(label_contents, channels=1)
 
-    if input_size is not None:
+    if center_crop_size is not None:
+        assert input_size is not None
+        h, w = input_size
+
+        y0 = int((h - center_crop_size[0]) / 2)
+        x0 = int((w - center_crop_size[1]) / 2)
+
+        img = tf.image.crop_to_bounding_box(img, y0, x0, center_crop_size[0], center_crop_size[1])
+        label = tf.image.crop_to_bounding_box(label, y0, x0, center_crop_size[0], center_crop_size[1])
+
+        img.set_shape((center_crop_size[0], center_crop_size[1], 3))
+        label.set_shape((center_crop_size[0], center_crop_size[1], 1))
+
+    elif input_size is not None:
         h, w = input_size
 
         if random_scale:
@@ -96,19 +109,19 @@ class ImageReader(object):
        masks from the disk, and enqueues them into a TensorFlow queue.
     '''
 
-    def __init__(self, data_dir, data_list, input_size,
+    def __init__(self, data_dir, data_list, input_size, center_crop_size,
                   random_scale, random_mirror, ignore_label, img_mean):
 
-        self.data_dir = data_dir
-        self.data_list = data_list
-        self.input_size = input_size
+        # self.data_dir = data_dir
+        # self.data_list = data_list
+        # self.input_size = input_size
 
-        self.image_list, self.label_list = read_labeled_image_list(self.data_dir, self.data_list)
+        self.image_list, self.label_list = read_labeled_image_list(data_dir, data_list)
         self.images = tf.convert_to_tensor(self.image_list, dtype=tf.string)
         self.labels = tf.convert_to_tensor(self.label_list, dtype=tf.string)
         self.queue = tf.train.slice_input_producer([self.images, self.labels],
                                                    shuffle=input_size is not None) # not shuffling if it is val
-        self.image, self.label = read_images_from_disk(self.queue, self.input_size, random_scale, random_mirror, ignore_label, img_mean)
+        self.image, self.label = read_images_from_disk(self.queue, input_size, center_crop_size, random_scale, random_mirror, ignore_label, img_mean)
 
     def dequeue(self, num_elements):
         image_batch, label_batch = tf.train.batch([self.image, self.label],
