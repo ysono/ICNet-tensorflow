@@ -78,6 +78,8 @@ def get_arguments():
     parser.add_argument("--filter-scale", type=int, default=1,
                         help="1 for using pruned model, while 2 for using non-pruned model.",
                         choices=[1, 2])
+    parser.add_argument("--loss_mult_nonego_car", type=float, default=6.0)
+    parser.add_argument("--loss_mult_road", type=float, default=3.0)
     return parser.parse_args()
 
 def save(saver, sess, logdir, step):
@@ -101,7 +103,7 @@ def get_mask(gt, num_classes, ignore_label):
 
     return indices
 
-def create_loss(output, label, num_classes, __ignore_label):
+def create_loss(output, label, num_classes, args):
     with tf.variable_scope('optimizer_fscore'):
         logits = tf.sigmoid(output)
 
@@ -132,7 +134,7 @@ def create_loss(output, label, num_classes, __ignore_label):
 
         loss_correctness = correctness(logits, label)
 
-        overall_loss = f_car_loss * 6 + f_road_loss * 3 + loss_correctness
+        overall_loss = f_car_loss * args.loss_mult_nonego_car + f_road_loss * args.loss_mult_road + loss_correctness
 
     return overall_loss
 
@@ -170,9 +172,9 @@ def main():
     restore_var = tf.global_variables()
     all_trainable = [v for v in tf.trainable_variables() if ('beta' not in v.name and 'gamma' not in v.name) or args.train_beta_gamma]
    
-    loss_sub4 = create_loss(sub4_3cls, label_batch, num_reclassified_classes, args.ignore_label)
-    loss_sub24 = create_loss(sub24_3cls, label_batch, num_reclassified_classes, args.ignore_label)
-    loss_sub124 = create_loss(sub124_3cls, label_batch, num_reclassified_classes, args.ignore_label)
+    loss_sub4 = create_loss(sub4_3cls, label_batch, num_reclassified_classes, args)
+    loss_sub24 = create_loss(sub24_3cls, label_batch, num_reclassified_classes, args)
+    loss_sub124 = create_loss(sub124_3cls, label_batch, num_reclassified_classes, args)
     
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables()
                  if ('weights' in v.name) or ('kernel' in v.name)]
