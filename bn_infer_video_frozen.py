@@ -12,11 +12,14 @@ import sys
 
 NOTEGO_MASK = np.invert(np.load('udacity-lyft-challenge-ego-mask-bool.npy'))
 
-def extract_2cls(preds_3cls):
+ROAD_THRESHOLD = 0.8
+CAR_THRESHOLD = 0.7
+
+def extract_2cls(logits_2positiveclasses):
     preds_2cls = []
-    for pred_3cls in preds_3cls:
-        road = (pred_3cls == 1) & NOTEGO_MASK
-        nonego_car = (pred_3cls == 2) & NOTEGO_MASK
+    for logits in logits_2positiveclasses:
+        road = (logits[..., 0] > ROAD_THRESHOLD) & NOTEGO_MASK
+        nonego_car = (logits[..., 1] > CAR_THRESHOLD) & NOTEGO_MASK
         preds_2cls.append((nonego_car, road))
     return preds_2cls
 
@@ -32,13 +35,11 @@ def main(frozen_model_path, video_path):
     with tf.gfile.FastGFile(frozen_model_path, "rb") as f:
         graph_def.ParseFromString(f.read())
 
-    tf.import_graph_def(graph_def)
-    
-    inpt, outpt = [
-        tf.get_default_graph().get_tensor_by_name(n) for n in [
-            'import/inputs_600_800:0', 'import/output_sparse:0'
-        ]
-    ]
+    inpt, outpt = tf.import_graph_def(graph_def,
+        return_elements=['inputs_600_800:0', 'output_2positiveclasses:0'],
+        name='')
+
+    logits = tf.sigmoid(outpt)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -55,9 +56,9 @@ def main(frozen_model_path, video_path):
     for batch_i in range(0, frames.shape[0], batch_size):
         frames_batch = frames[batch_i : batch_i+batch_size]
 
-        preds_3cls = sess.run(outpt, feed_dict={inpt: frames_batch})
+        logits_2positiveclasses = sess.run(logits, feed_dict={inpt: frames_batch})
 
-        preds_2cls = extract_2cls(preds_3cls)
+        preds_2cls = extract_2cls(logits_2positiveclasses)
 
         for nonego_car, road in preds_2cls:
             frame_idx += 1
