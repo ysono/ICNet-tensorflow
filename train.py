@@ -14,7 +14,7 @@ import numpy as np
 from model import ICNet_BN
 from tools import decode_labels, prepare_label
 from image_reader import ImageReader
-from bn_common import extend_3cls_classifier
+import bn_common
 
 IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 
@@ -103,14 +103,14 @@ def get_mask(gt, num_classes, ignore_label):
 
     return indices
 
-def create_loss(output, label, num_classes, args):
+def create_loss(pred, label, args):
     with tf.variable_scope('optimizer_fscore'):
-        logits = tf.sigmoid(output)
+        logits = tf.sigmoid(pred)
 
-        label_onehot = prepare_label(label, tf.stack(output.get_shape()[1:3]), num_classes=num_classes, one_hot=True)
+        label_onehot = prepare_label(label, tf.stack(pred.get_shape()[1:3]), num_classes=3, one_hot=True)
 
-        logits_cls0, logits_cls1, logits_cls2 = tf.split(logits, axis=-1, num_or_size_splits=3)
-        labels_cls0, labels_cls1, labels_cls2 = tf.split(label_onehot, axis=-1, num_or_size_splits=3)
+        logits_cls1, logits_cls2 = tf.split(logits, axis=-1, num_or_size_splits=2)
+        _, labels_cls1, labels_cls2 = tf.split(label_onehot, axis=-1, num_or_size_splits=3)
 
         def f_score(logits_1cls, labels_1cls, beta):
             true_positive = tf.reduce_sum(tf.multiply(logits_1cls, labels_1cls))
@@ -129,10 +129,7 @@ def create_loss(output, label, num_classes, args):
         f_road = f_score(logits_cls1, labels_cls1, 0.5)
         f_road_loss = 1.0 - f_road
 
-        loss_correctness = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-            logits=output, labels=label_onehot))
-
-        overall_loss = f_car_loss * args.loss_mult_nonego_car + f_road_loss * args.loss_mult_road + loss_correctness
+        overall_loss = f_car_loss * args.loss_mult_nonego_car + f_road_loss * args.loss_mult_road
 
     return overall_loss
 
@@ -163,16 +160,14 @@ def main():
 
     net = ICNet_BN({'data': image_batch}, is_training=True, num_classes=args.num_classes, filter_scale=args.filter_scale)
 
-    sub4_3cls, sub24_3cls, sub124_3cls = extend_3cls_classifier(net)
-
-    num_reclassified_classes = 3
+    sub4_recls, sub24_recls, sub124_recls = bn_common.extend_reclassifier(net)
 
     restore_var = tf.global_variables()
     all_trainable = [v for v in tf.trainable_variables() if ('beta' not in v.name and 'gamma' not in v.name) or args.train_beta_gamma]
    
-    loss_sub4 = create_loss(sub4_3cls, label_batch, num_reclassified_classes, args)
-    loss_sub24 = create_loss(sub24_3cls, label_batch, num_reclassified_classes, args)
-    loss_sub124 = create_loss(sub124_3cls, label_batch, num_reclassified_classes, args)
+    loss_sub4 = create_loss(sub4_recls, label_batch, args)
+    loss_sub24 = create_loss(sub24_recls, label_batch, args)
+    loss_sub124 = create_loss(sub124_recls, label_batch, args)
     
     l2_losses = [args.weight_decay * tf.nn.l2_loss(v) for v in tf.trainable_variables()
                  if ('weights' in v.name) or ('kernel' in v.name)]

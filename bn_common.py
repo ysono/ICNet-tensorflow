@@ -6,14 +6,15 @@ from model import ICNet_BN
 
 IMG_MEAN = np.array((103.939, 116.779, 123.68), dtype=np.float32)
 
-def extend_3cls_classifier(net):
+def extend_reclassifier(net):
     sub4_out, sub24_out, sub124_out, conv2_sub1_bn, conv1_sub1_bn, origsize_bgr = [net.layers[n] for n in [
         'sub4_out', 'sub24_out', 'conv6_cls', 'conv2_sub1_bn', 'conv1_sub1_bn', 'data']]
 
     with tf.variable_scope('reclassification'):
-        num_reclassified_classes = 3
+        # No bg class; just positive cls 1 = road and positive cls 2 = car.
+        num_reclassified_classes = 2
 
-        sub4_3cls, sub24_3cls, sub124_3cls = [
+        sub4_recls, sub24_recls, sub124_recls = [
             tf.layers.conv2d(logits_19cls,
                 filters=num_reclassified_classes, kernel_size=3, strides=1, padding='SAME',
                 kernel_initializer=tf.truncated_normal_initializer(stddev=0.01),
@@ -43,25 +44,25 @@ def extend_3cls_classifier(net):
 
         skip_quartersize = 0.0001 * conv2_sub1_bn
         skip_quartersize = inception(skip_quartersize, 16)
-        sub124_3cls_interp_to_quartersize = tf.image.resize_bilinear(
-            sub124_3cls, size=tf.shape(skip_quartersize)[1:3], align_corners=True)
-        sub124_3cls_added_quartersize = sub124_3cls_interp_to_quartersize + skip_quartersize
+        sub124_recls_interp_to_quartersize = tf.image.resize_bilinear(
+            sub124_recls, size=tf.shape(skip_quartersize)[1:3], align_corners=True)
+        sub124_recls_added_quartersize = sub124_recls_interp_to_quartersize + skip_quartersize
         # todo activn
 
         skip_halfsize = 0.00001 * conv1_sub1_bn
         skip_halfsize = inception(skip_halfsize, 16)
-        sub124_3cls_interp_to_halfsize = tf.image.resize_bilinear(
-            sub124_3cls_added_quartersize, size=tf.shape(skip_halfsize)[1:3], align_corners=True)
-        sub124_3cls_added_halfsize = sub124_3cls_interp_to_halfsize + skip_halfsize
+        sub124_recls_interp_to_halfsize = tf.image.resize_bilinear(
+            sub124_recls_added_quartersize, size=tf.shape(skip_halfsize)[1:3], align_corners=True)
+        sub124_recls_added_halfsize = sub124_recls_interp_to_halfsize + skip_halfsize
         # todo activn
 
         skip_origsize = 0.000001 * origsize_bgr
         skip_origsize = inception(skip_origsize, 3)
-        sub124_3cls_interp_to_origsize = tf.image.resize_bilinear(
-            sub124_3cls_added_halfsize, size=tf.shape(skip_origsize)[1:3], align_corners=True)
-        sub124_3cls_added_origsize = sub124_3cls_interp_to_origsize + skip_origsize
+        sub124_recls_interp_to_origsize = tf.image.resize_bilinear(
+            sub124_recls_added_halfsize, size=tf.shape(skip_origsize)[1:3], align_corners=True)
+        sub124_recls_added_origsize = sub124_recls_interp_to_origsize + skip_origsize
 
-    return sub4_3cls, sub24_3cls, sub124_3cls_added_origsize
+    return sub4_recls, sub24_recls, sub124_recls_added_origsize
 
 def recreate_bn_model(input_imgs_tensor, is_training=True, crop_size=(600,800)):
     snapshot_dir = './snapshots/'
@@ -73,7 +74,7 @@ def recreate_bn_model(input_imgs_tensor, is_training=True, crop_size=(600,800)):
 
     net = ICNet_BN({'data': imgs}, is_training=is_training, num_classes=19, filter_scale=1)
 
-    _, _, output = extend_3cls_classifier(net)
+    _, _, pred = extend_reclassifier(net)
 
     restore_var = tf.global_variables()
 
@@ -93,7 +94,7 @@ def recreate_bn_model(input_imgs_tensor, is_training=True, crop_size=(600,800)):
         net.load(restore_from, sess)
 
     if crop_size is not None:
-        output = tf.image.crop_to_bounding_box(output, 0, 0, crop_size[0], crop_size[1])
-    output = tf.argmax(output, axis=3, name='output_sparse')
+        pred = tf.image.crop_to_bounding_box(pred, 0, 0, crop_size[0], crop_size[1])
+    pred = tf.identity(pred, name='output_2positiveclasses')
 
-    return sess, output
+    return sess, pred
