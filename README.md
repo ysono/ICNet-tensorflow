@@ -1,9 +1,55 @@
+# ICNet for Udacity Lyft Challenge
+
+This repo implements a modified [ICNet](https://arxiv.org/pdf/1704.08545.pdf) used for [Udacity's Lyft Challenge of 2018](https://blog.udacity.com/2018/05/lyft-udacity-self-driving-hiring-challenge.html).
+
+Accompanying the code are [carla.ipynb](https://colab.research.google.com/github/ysono/ICNet-udacity-lyft-challenge/blob/master/notebooks/carla.ipynb) which prepares data and [notebook.ipynb](https://colab.research.google.com/github/ysono/ICNet-udacity-lyft-challenge/blob/master/notebooks/notebook.ipynb) which executes training. They show, respectively, how to handle large files without displeasing your ISP and how to use a K80 GPU for many hours a day, for free, using Google Colab.
+
+The code and the notebooks were rapidly put together for the competition, and is not nearly in a production-ready state.
+
+The motivation for modifying ICNet was that, under the condition prescribed by the competition, the model always performed much better than 10FPS, under which some penalties would be incurred, but the graded [f-scores](https://en.wikipedia.org/wiki/F1_score) could use improvement.
+
+Some of the changes that resulted in noticeable improvements were:
+
+- Adding 3 skip connections from the largest-dimension branch (called `sub1` in code) of the 3 branches: from the output of convolution that reduced the original size by 1/4, ditto 1/2, and the original RGB input itself.
+- Changing these 3 skip connections to use 2 parallel branches, inspired by [Inception](https://arxiv.org/pdf/1602.07261v2.pdf): a branch of 1x1 conv, and another branch with 2 layers of 3x3 conv.
+- Adding a differentiable loss function that approximated the f-score equation specific to the competition, inspired from [prior art on the equivalent loss function for IoU](https://angusg.com/writing/2016/12/28/optimizing-iou-semantic-segmentation.html). Ultimately I removed cross entropy loss altogether, made the model predict two non-background classes independently (hence allowing one pixel to belong to multiple classes), and interpreted the prediction by applying a threshold (for each class, true if e.g. sigmoid value > 0.3).
+- Training a different model for a cropped center region of the image.
+
+Some of the changes that did not work out were:
+
+- Replacing bilinear upsizing with transposed conv.
+- Using PSPNet-style pyramid that concatenated the outputs of the pyramid instead of summing them.
+- Affecting random brightness to input RGB images.
+
+The graded f-score was this:
+
+![](doc/competition-fscore.png)
+
+And my best score was
+
+```
+Your program runs at 11.363 FPS
+Car F score: 0.817 | Car Precision: 0.641 | Car Recall: 0.877 | Road F score: 0.969 | Road Precision: 0.982 | Road Recall: 0.922 | Averaged F score: 0.893
+```
+
+For reference, the number of "car" pixels in the graded dataset was quite small. Below was the graded result if we predicted that every pixel was both part of a car and part of a road.
+
+```
+Car F score: 0.064 | Car Precision: 0.014 | Car Recall: 1.000 | Road F score: 0.297 | Road Precision: 0.253 | Road Recall: 1.000 | Averaged F score: 0.181
+```
+
+---
+
+The readme for the original ICNet impl is below.
+
+---
+
 # ICNet_tensorflow
 ## Introduction
   This is an implementation of ICNet in TensorFlow for semantic segmentation on the [cityscapes](https://www.cityscapes-dataset.com/) dataset. We first convert weight from [Original Code](https://github.com/hszhao/ICNet) by using [caffe-tensorflow](https://github.com/ethereon/caffe-tensorflow) framework.  
-  
+
  ![](https://github.com/hellochick/ICNet-tensorflow/blob/master/utils/icnet.png)
- 
+
 ## Install
 Get restore checkpoint from [Google Drive](https://drive.google.com/drive/folders/1pBN07IW_zxEVlL2q9ColGs6QkUNkplsi?usp=sharing) and put into `model` directory.
 
@@ -12,7 +58,7 @@ To get result on your own images, use the following command:
 
 ### Cityscapes example
 ```
-python inference.py --img-path=./input/outdoor_1.png --dataset=cityscapes --filter-scale=1 
+python inference.py --img-path=./input/outdoor_1.png --dataset=cityscapes --filter-scale=1
 ```
 ### ADE20k example
 ```
@@ -30,7 +76,7 @@ List of Args:
 --dataset=cityscapes - To select inference on cityscapes dataset
 --dataset=ade20k     - To select inference on ade20k dataset
 
---filter-scale      - 1 for pruned model, while 2 for non-pruned model. (if you load pre-trained model, always set to 1. 
+--filter-scale      - 1 for pruned model, while 2 for non-pruned model. (if you load pre-trained model, always set to 1.
                       However, if you want to try pre-trained model on ade20k, set this parameter to 2)
 ```
 ### Inference time
@@ -58,7 +104,7 @@ export CITYSCAPES_DATASET=<cityscapes dataset path>
 csCreateTrainIdLabelImgs
 ```
 
-Then run the following command: 
+Then run the following command:
 ```
 python evaluate.py --dataset=cityscapes --filter-scale=1 --model=trainval
 ```
@@ -150,7 +196,7 @@ Scene Parsing through ADE20K Dataset. B. Zhou, H. Zhao, X. Puig, S. Fidler, A. B
         booktitle={Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition},
         year={2017}
     }
-    
+
 Semantic Understanding of Scenes through ADE20K Dataset. B. Zhou, H. Zhao, X. Puig, S. Fidler, A. Barriuso and A. Torralba. arXiv:1608.05442. (https://arxiv.org/pdf/1608.05442.pdf)
 
     @article{zhou2016semantic,
